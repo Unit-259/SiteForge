@@ -1,7 +1,6 @@
 function Get-SiteForgeStatus {
     [CmdletBinding()]
     param()
-
     Write-Host "`n🧭 Gathering SiteForge status..." -ForegroundColor Cyan
 
     $status = [ordered]@{}
@@ -137,5 +136,6 @@ try {
     Write-Host "───────────────────────────────"
     Write-Host "`n💡 Tip: Run 'Update-Website' to redeploy your latest version."
 }
+
 
 
