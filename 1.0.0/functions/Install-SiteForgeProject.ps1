@@ -13,8 +13,6 @@ function Install-SiteForgeProject {
         [switch]$ForceReinstall
     )
 
-    $startTime = Get-Date
-
     Write-Host "`n🚀 Launching SiteForge Project Installer..." -ForegroundColor Cyan
 
     # --- Step 0: Collect inputs ---
@@ -181,22 +179,15 @@ server {
     sudo systemctl reload nginx
 
     # --- Step 11: Success summary ---
-    $endTime = Get-Date
-    $duration = $endTime - $startTime
-    $mins = [math]::Floor($duration.TotalMinutes)
-    $secs = [math]::Round($duration.Seconds, 0)
-    
     Write-Host "`n✅ SiteForge setup complete!" -ForegroundColor Green
     Write-Host "🌐 Website: https://$Domain"
     Write-Host "📂 Web root: /var/www/html"
     Write-Host "🧩 Config: /etc/nginx/sites-available/$Domain"
     Write-Host "💾 Repo: $Repo"
-    Write-Host ""
-    Write-Host ("⏱️  Total runtime: {0} minute{1} {2} second{3}" -f $mins, $(if($mins -ne 1){"s"}), $secs, $(if($secs -ne 1){"s"}))) -ForegroundColor Yellow
-    Write-Host ""
-    Write-Host "Run 'update-Website' anytime to redeploy from Git." -ForegroundColor Cyan
-    
-    # Auto-display status after completion
+    Write-Host "`nRun 'update-Website' anytime to redeploy from Git." -ForegroundColor Cyan
+
+    # --- Step 12: Reload profile & status ---
+    Write-Host "`n🔄 Reloading PowerShell profile..." -ForegroundColor Yellow
     Start-Sleep -Seconds 2
     & pwsh -NoLogo -Command ". $PROFILE; Get-SiteForgeStatus"
     exit
