@@ -1,61 +1,71 @@
 function New-SiteForgeProject {
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory=$true)]
+        [Parameter(Mandatory = $true)]
         [string]$Domain,
-        [Parameter(Mandatory=$true)]
+        [Parameter(Mandatory = $true)]
         [string]$Repo,
-        [Parameter(Mandatory=$false)]
+        [Parameter(Mandatory = $false)]
         [string]$Email = "admin@example.com"
     )
 
     Write-Host "`n🌍 Creating new SiteForge project for $Domain..." -ForegroundColor Cyan
 
-    # Store repo reference in PowerShell profile
+    # --- Persist variables ----------------------------------------------------
     if (-not (Test-Path -Path $PROFILE)) {
         New-Item -ItemType File -Path $PROFILE -Force | Out-Null
     }
-    $profileLine = "`$gitRepo = '$Repo'"
-    if (-not (Select-String -Path $PROFILE -Pattern '^\$gitRepo\s*=' -Quiet)) {
-        Add-Content -Path $PROFILE -Value "`n# SiteForge Git Repository`n$profileLine"
-    } else {
-        (Get-Content $PROFILE) -replace '^\$gitRepo\s*=.*', $profileLine | Set-Content $PROFILE
+
+    $repoLine   = "`$gitRepo = '$Repo'"
+    $domainLine = "`$webDomain = '$Domain'"
+
+    $content = if (Test-Path $PROFILE) { Get-Content -Raw $PROFILE } else { "" }
+
+    foreach ($pair in @(@{pattern='^\$gitRepo\s*=.*'; line=$repoLine},
+                        @{pattern='^\$webDomain\s*=.*'; line=$domainLine})) {
+        if ($content -match $pair.pattern) {
+            $content = $content -replace $pair.pattern, $pair.line
+        } else {
+            Add-Content -Path $PROFILE -Value "`n$($pair.line)"
+        }
     }
+    if ($content) { $content | Set-Content -Path $PROFILE }
+    Write-Host "💾 Stored `$gitRepo and `$webDomain in profile."
 
-    Write-Host "💾 Stored `$gitRepo reference in profile."
-
-    # Make sure NGINX web directory exists
+    # --- Web root -------------------------------------------------------------
     $directory = "/var/www/html/"
-    if (-not (Test-Path -Path $directory)) {
+    if (-not (Test-Path $directory)) {
         Write-Host "Creating web root directory..."
         sudo mkdir -p $directory
     }
 
-    # Clone repository
+    # --- Clone repo -----------------------------------------------------------
     Write-Host "Cloning repository..."
     cd /root/
-    git clone $Repo tempdir
+    if (Test-Path ./tempdir) { Remove-Item -Recurse -Force ./tempdir }
+    git clone $Repo tempdir | Out-Host
 
-    if (Test-Path -Path "./tempdir/html") {
-        Get-ChildItem -Path ./tempdir/html -Recurse | Move-Item -Destination /var/www/html
+    if (Test-Path ./tempdir/html) {
+        Write-Host "📁 Found 'html' folder — deploying contents..."
+        Get-ChildItem -Path ./tempdir/html -Recurse | Move-Item -Destination /var/www/html -Force
     } else {
-        Write-Host "⚠️ The directory 'html' does not exist within the repository."
+        Write-Host "📂 No 'html' folder found — deploying root repo files instead..."
+        Get-ChildItem -Path ./tempdir -Recurse -Exclude '.git', '.github', '.gitignore' | Move-Item -Destination /var/www/html -Force
     }
+    Remove-Item -Recurse -Force ./tempdir
 
-    Remove-Item -Path ./tempdir -Recurse -Force
-
-    # Generate basic NGINX config
+    # --- NGINX configuration --------------------------------------------------
     $configPath = "/etc/nginx/sites-available/$Domain"
-    if (-not (Test-Path -Path $configPath)) {
+    if (-not (Test-Path $configPath)) {
         $nginxConfig = @"
 server {
     listen 80;
-    server_name $Domain;
+    server_name $Domain www.$Domain;
     root /var/www/html;
     index index.html index.htm index.php;
 
     location / {
-        try_files \$uri \$uri/ =404;
+        try_files \$uri \$uri/ /index.html;
     }
 }
 "@
@@ -64,9 +74,9 @@ server {
         Write-Host "📝 Created NGINX config for $Domain"
     }
 
-    # Obtain SSL certificate
+    # --- SSL certificate ------------------------------------------------------
     Write-Host "Requesting SSL certificate..."
-    sudo certbot --nginx --non-interactive --agree-tos --email $Email -d $Domain
+    sudo certbot --nginx --non-interactive --agree-tos --email $Email -d $Domain -d "www.$Domain"
 
     sudo nginx -t
     sudo systemctl reload nginx
