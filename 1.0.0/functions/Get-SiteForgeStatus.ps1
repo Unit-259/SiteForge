@@ -86,34 +86,47 @@ function Get-SiteForgeStatus {
         $status['Firewall'] = "Error checking firewall"
     }
 
-    # ───── Fail2Ban Info ─────
-    try {
-        if (Get-Command fail2ban-client -ErrorAction SilentlyContinue) {
-            $summary = (sudo fail2ban-client status 2>&1)
+# ───── Fail2Ban Info ─────
+try {
+    if (Get-Command fail2ban-client -ErrorAction SilentlyContinue) {
+        $fbStatus = (sudo systemctl is-active fail2ban 2>$null)
+        if ($fbStatus -eq "active") {
+            # Get the client summary quietly
+            $summary = (sudo fail2ban-client status 2>&1) | Out-String
             if ($summary -match "Jail list:") {
-                $jailList = ($summary -split "Jail list:")[1].Trim() -split ",\s*"
-                $jailCount = ($jailList | Where-Object { $_ -ne "" }).Count
+                $jails = ($summary -split "Jail list:")[1].Trim() -split ",\s*"
+                $jails = $jails | Where-Object { $_ -and $_.Trim() -ne "" }
+                $jailCount = $jails.Count
+
                 $totalBanned = 0
-                foreach ($j in $jailList) {
-                    if ($j.Trim()) {
-                        $banned = ((sudo fail2ban-client status $j.Trim() | Select-String "Currently banned:").ToString().Split(":")[-1].Trim())
-                        if ([int]::TryParse($banned, [ref]$null)) { $totalBanned += [int]$banned }
+                foreach ($j in $jails) {
+                    $cleanName = $j.Trim()
+                    $bannedLine = (sudo fail2ban-client status $cleanName 2>$null |
+                                   Select-String "Currently banned:" -Quiet)
+                    if ($bannedLine) {
+                        $bannedCount = ((sudo fail2ban-client status $cleanName |
+                                         Select-String "Currently banned:").ToString().Split(":")[-1].Trim())
+                        if ([int]::TryParse($bannedCount, [ref]0)) {
+                            $totalBanned += [int]$bannedCount
+                        }
                     }
                 }
-                $status['Fail2Ban'] = "active ($jailCount jails, $totalBanned banned)"
-            }
-            elseif ((sudo systemctl is-active fail2ban) -eq 'active') {
-                $status['Fail2Ban'] = "active (no jails)"
+                $status['Fail2Ban'] = "active ($jailCount jail(s), $totalBanned banned)"
             }
             else {
-                $status['Fail2Ban'] = "installed but inactive"
+                $status['Fail2Ban'] = "active (no jails listed)"
             }
-        } else {
-            $status['Fail2Ban'] = "not installed"
         }
-    } catch {
-        $status['Fail2Ban'] = "Error checking Fail2Ban"
+        else {
+            $status['Fail2Ban'] = "installed but inactive"
+        }
     }
+    else {
+        $status['Fail2Ban'] = "not installed"
+    }
+} catch {
+    $status['Fail2Ban'] = "Error checking Fail2Ban: $($_.Exception.Message)"
+}
 
     # ───── Output ─────
     Write-Host "`n🧩 SITEFORGE STATUS" -ForegroundColor Green
@@ -124,4 +137,5 @@ function Get-SiteForgeStatus {
     Write-Host "───────────────────────────────"
     Write-Host "`n💡 Tip: Run 'Update-Website' to redeploy your latest version."
 }
+
 
