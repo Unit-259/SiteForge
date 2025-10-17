@@ -58,4 +58,6 @@ function restartNginx { sudo nginx -t && sudo systemctl reload nginx }
     }
 
     Write-Host "`n✅ SiteForge initialization complete." -ForegroundColor Green
+    . $PROFILE
 }
+
