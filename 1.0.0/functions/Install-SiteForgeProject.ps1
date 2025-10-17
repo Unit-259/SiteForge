@@ -28,6 +28,13 @@ function Install-SiteForgeProject {
     $privateRepo = Read-Host "Is this a PRIVATE repository that requires SSH? (y/N)"
     $privateRepo = $privateRepo.Trim().ToLower() -in @('y','yes')
 
+    # --- Step 0.5: DNS validation ---
+    if (-not (Test-SiteForgeDNS -Domain $Domain)) {
+        Write-Host "`n⚠️  DNS is not yet pointing to this server." -ForegroundColor Yellow
+        Write-Host "   Please update your A record to this server's IP and rerun Install-SiteForgeProject." -ForegroundColor DarkGray
+        return
+    }
+
     # --- Step 1: Force reinstall logic ---
     if ($ForceReinstall) {
         Write-Host "`n⚠️  Force reinstall mode activated for $Domain" -ForegroundColor Yellow
