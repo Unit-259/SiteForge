@@ -100,7 +100,7 @@ function Install-SiteForgeProject {
     $fwChoice = Read-Host "Would you like to enable and lock down the firewall to ports 22, 80, and 443? (Y/n)"
     if ($fwChoice.Trim().ToLower() -notin @('n','no')) {
         Write-Host "`n🛡️  Enabling firewall..." -ForegroundColor Yellow
-        Enable-SiteForgeFirewall
+        Enable-Firewall
     }
 
     $banChoice = Read-Host "Would you like to install and enable Fail2Ban for brute-force protection? (Y/n)"
