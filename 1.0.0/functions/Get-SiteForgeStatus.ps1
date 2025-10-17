@@ -4,65 +4,55 @@ function Get-SiteForgeStatus {
 
     Write-Host "`n🧭 Gathering SiteForge status..." -ForegroundColor Cyan
 
-    if (Test-Path $PROFILE) { . $PROFILE }
-
     $status = [ordered]@{}
 
-    # --- Basic system info ---
-    $status['Hostname']       = (hostname)
-    $status['OS']             = (lsb_release -ds 2>$null) -replace '"'
-    $status['Uptime']         = (uptime -p) -replace '^up ', ''
-    $status['Date & Time']    = (date)
-    $status['PowerShell']     = $PSVersionTable.PSVersion.ToString()
+    # ───── Basic System Info ─────
+    $status['Hostname']    = (hostname)
+    $status['OS']          = (lsb_release -ds 2>$null) -replace '"'
+    $status['Uptime']      = (uptime -p) -replace '^up ', ''
+    $status['Date & Time'] = (date)
+    $status['PowerShell']  = $PSVersionTable.PSVersion.ToString()
 
-    # --- NGINX info ---
+    # ───── NGINX Info ─────
     try {
-        $status['NGINX Version'] = ((nginx -v 2>&1) -replace 'nginx version: ', '')
+        $nginxVersion = (nginx -v 2>&1) -replace 'nginx version: ', ''
+        $status['NGINX Version'] = $nginxVersion
         $status['NGINX Status']  = (sudo systemctl is-active nginx)
     } catch {
         $status['NGINX Version'] = "Not installed"
         $status['NGINX Status']  = "N/A"
     }
 
-    # --- Git info ---
+    # ───── Git Info ─────
     try {
-        $status['Git Version'] = ((git --version) -replace 'git version ', '')
+        $status['Git Version'] = (git --version) -replace 'git version ', ''
     } catch {
         $status['Git Version'] = "Not installed"
     }
 
-    # --- Detect active domain ---
-    $sslDomain = $null
-    if ($webDomain) {
-        $sslDomain = $webDomain
-    } else {
-        # Try to find from NGINX config file contents
-        $conf = Get-ChildItem /etc/nginx/sites-available -File | Where-Object {
-            (Select-String -Path $_.FullName -Pattern 'server_name' -Quiet)
-        } | Select-Object -First 1
-        if ($conf) {
-            $serverNameLine = (Select-String -Path $conf.FullName -Pattern 'server_name').Line
-            $sslDomain = ($serverNameLine -split '\s+')[1] -replace ';',''
-        }
-    }
-
     # --- SSL certificate existence ---
-    if ($sslDomain) {
+    try {
+        if ($webDomain) {
+            $sslDomain = $webDomain
+        } else {
+            $nginxConf = Get-ChildItem /etc/nginx/sites-available -File | Select-Object -First 1
+            $sslDomain = if ($nginxConf) { $nginxConf.BaseName } else { (hostname) }
+        }
+    
         $sslPath = "/etc/letsencrypt/live/$sslDomain/fullchain.pem"
         if (Test-Path $sslPath) {
             $file = Get-Item $sslPath
             $kbSize = [math]::Round($file.Length / 1KB, 1)
             if ($kbSize -lt 1) { $sizeText = "<1 KB" } else { $sizeText = "$kbSize KB" }
             $status['SSL Certificate'] = "Detected for $sslDomain ($sizeText, modified $($file.LastWriteTime.ToString('yyyy-MM-dd HH:mm')))"
-
         } else {
             $status['SSL Certificate'] = "Missing at /etc/letsencrypt/live/$sslDomain/"
         }
-    } else {
-        $status['SSL Certificate'] = "No domain found in NGINX configs"
+    } catch {
+        $status['SSL Certificate'] = "Error checking SSL certificate"
     }
 
-    # --- Web root info ---
+    # ───── Web Root Info ─────
     if (Test-Path "/var/www/html") {
         $webFiles = (Get-ChildItem /var/www/html -Recurse -ErrorAction SilentlyContinue | Measure-Object).Count
         $status['Web Root'] = "/var/www/html ($webFiles files)"
@@ -70,19 +60,63 @@ function Get-SiteForgeStatus {
         $status['Web Root'] = "Missing"
     }
 
-    # --- Repo info ---
+    # ───── Git Repo Info ─────
     if ($gitRepo) {
         $status['Git Repo'] = $gitRepo
     } else {
         $status['Git Repo'] = "Not configured (`$gitRepo missing in profile)"
     }
 
-    # --- Display summary ---
+    # ───── Firewall Info ─────
+    try {
+        if (Get-Command ufw -ErrorAction SilentlyContinue) {
+            $ufwOutput = (sudo ufw status | Out-String)
+            if ($ufwOutput -match "Status: active") {
+                $ports = ($ufwOutput -split "`n" | Where-Object {$_ -match "ALLOW"}) -replace '\s+ALLOW.*',''
+                $ports = ($ports | Where-Object {$_ -ne ""}) -join ', '
+                if (-not $ports) { $ports = "custom rules" }
+                $status['Firewall'] = "active ($ports)"
+            } else {
+                $status['Firewall'] = "inactive"
+            }
+        } else {
+            $status['Firewall'] = "not installed"
+        }
+    } catch {
+        $status['Firewall'] = "Error checking firewall"
+    }
+
+    # ───── Fail2Ban Info ─────
+    try {
+        if (Get-Command fail2ban-client -ErrorAction SilentlyContinue) {
+            $summary = (sudo fail2ban-client status 2>&1)
+            if ($summary -match "Status: active") {
+                $jailList = ($summary -split "Jail list:")[1].Trim() -split ",\s*"
+                $jailCount = ($jailList | Where-Object { $_ -ne "" }).Count
+                $totalBanned = 0
+                foreach ($j in $jailList) {
+                    if ($j.Trim()) {
+                        $banned = ((sudo fail2ban-client status $j.Trim() | Select-String "Currently banned:").ToString().Split(":")[-1].Trim())
+                        if ([int]::TryParse($banned, [ref]$null)) { $totalBanned += [int]$banned }
+                    }
+                }
+                $status['Fail2Ban'] = "active ($jailCount jails, $totalBanned banned)"
+            } else {
+                $status['Fail2Ban'] = "installed but inactive"
+            }
+        } else {
+            $status['Fail2Ban'] = "not installed"
+        }
+    } catch {
+        $status['Fail2Ban'] = "Error checking Fail2Ban"
+    }
+
+    # ───── Output ─────
     Write-Host "`n🧩 SITEFORGE STATUS" -ForegroundColor Green
     Write-Host "───────────────────────────────"
     foreach ($key in $status.Keys) {
         Write-Host ("{0,-18} : {1}" -f $key, $status[$key])
     }
     Write-Host "───────────────────────────────"
-    Write-Host "`n💡 Tip: Run 'update-website' to redeploy your latest version."
+    Write-Host "`n💡 Tip: Run 'Update-Website' to redeploy your latest version."
 }
