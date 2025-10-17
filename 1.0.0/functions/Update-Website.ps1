@@ -12,25 +12,14 @@ function Update-Website {
 
     Write-Host "`n🔁 Updating website from $RepoLink..." -ForegroundColor Cyan
 
-    # Save current path
     $p = Get-Location
+    if (Test-Path "/var/www/html") { sudo rm -rf /var/www/html/* } else { sudo mkdir -p /var/www/html }
 
-    # Clean target directory
-    if (Test-Path "/var/www/html") {
-        sudo rm -rf /var/www/html/*
-    } else {
-        sudo mkdir -p /var/www/html
-    }
-
-    # Clone the repository fresh each time
     cd /root/
-    if (Test-Path "./tempdir") {
-        Remove-Item -Recurse -Force ./tempdir
-    }
+    if (Test-Path ./tempdir) { Remove-Item -Recurse -Force ./tempdir }
     git clone $RepoLink tempdir | Out-Host
 
-    # Decide what to move
-    $htmlDir = "./tempdir/html"
+    $htmlDir  = "./tempdir/html"
     $repoRoot = "./tempdir"
 
     if (Test-Path $htmlDir) {
@@ -41,14 +30,8 @@ function Update-Website {
         Get-ChildItem -Path $repoRoot -Recurse -Exclude '.git', '.github', '.gitignore' | Move-Item -Destination /var/www/html -Force
     }
 
-    # Cleanup
-    if (Test-Path "./tempdir") {
-        Remove-Item -Recurse -Force ./tempdir
-    }
+    Remove-Item -Recurse -Force ./tempdir
     cd $p
-
-    # Fix permissions
     sudo chmod -R 755 /var/www/html
-
     Write-Host "✅ Website updated successfully." -ForegroundColor Green
 }
