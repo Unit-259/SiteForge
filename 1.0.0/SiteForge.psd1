@@ -69,7 +69,7 @@ PowerShellVersion = '7.4'
 # NestedModules = @()
 
 # Functions to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no functions to export.
-FunctionsToExport = @('Initialize-SiteForgeServer', 'New-SiteForgeProject', 'Update-Website', 'Get-SiteForgeStatus')
+FunctionsToExport = @('Install-SiteForgeProject', 'Test-SiteForgeDNS', 'Enable-Fail2Ban', 'Show-Fail2BanStatus', 'Enable-Firewall', 'Show-FirewallStatus', 'Show-FirewallStatus', 'Test-SiteForgeDNS', 'Get-SiteForgeStatus')
 
 # Cmdlets to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no cmdlets to export.
 CmdletsToExport = '*'
@@ -129,4 +129,5 @@ PrivateData = @{
 # DefaultCommandPrefix = ''
 
 }
+
 
