@@ -134,26 +134,6 @@ function errorLogs     { sudo tail -f /var/log/nginx/error.log }
 function nginxConfig   { sudo nano "/etc/nginx/sites-available/$webDomain" }
 function catnginxConfig{ sudo cat "/etc/nginx/sites-available/$webDomain" }
 function restartNginx  { sudo nginx -t && sudo systemctl reload nginx }
-function update-Website {
-    Write-Host "`n🔁 Updating website from $gitRepo..." -ForegroundColor Cyan
-    $p = Get-Location
-    if (Test-Path "/var/www/html") { sudo rm -rf /var/www/html/* } else { sudo mkdir -p /var/www/html }
-    cd /root/
-    if (Test-Path "./tempdir") { Remove-Item -Recurse -Force ./tempdir }
-    git clone $gitRepo tempdir | Out-Host
-    $htmlDir = "./tempdir/html"
-    if (Test-Path $htmlDir) {
-        Get-ChildItem -Path $htmlDir -Recurse | Move-Item -Destination /var/www/html -Force
-    } else {
-        Get-ChildItem "./tempdir" -Recurse -Exclude '.git','README.md' | Move-Item -Destination /var/www/html -Force
-    }
-    Remove-Item -Recurse -Force ./tempdir
-    cd $p
-    sudo chmod -R 755 /var/www/html
-    sudo nginx -t
-    sudo systemctl reload nginx
-    Write-Host "✅ Website updated successfully." -ForegroundColor Green
-}
 '@
 
     $content = Get-Content $PROFILE -Raw
