@@ -89,6 +89,19 @@ function Install-SiteForgeProject {
         Write-Host "🔓 Skipping SSH key generation (public repo)."
     }
 
+    # --- Step 3.5: Optional Security Hardening ---
+    $fwChoice = Read-Host "Would you like to enable and lock down the firewall to ports 22, 80, and 443? (Y/n)"
+    if ($fwChoice.Trim().ToLower() -notin @('n','no')) {
+        Write-Host "`n🛡️  Enabling firewall..." -ForegroundColor Yellow
+        Enable-SiteForgeFirewall
+    }
+
+    $banChoice = Read-Host "Would you like to install and enable Fail2Ban for brute-force protection? (Y/n)"
+    if ($banChoice.Trim().ToLower() -notin @('n','no')) {
+        Write-Host "`n🚨 Installing Fail2Ban..." -ForegroundColor Yellow
+        Enable-Fail2Ban
+    }
+
     # --- Step 4: Ensure PowerShell profile exists ---
     if (-not (Test-Path -Path $PROFILE)) {
         Write-Host "Creating PowerShell profile..."
@@ -125,7 +138,7 @@ function update-Website {
     if (Test-Path $htmlDir) {
         Get-ChildItem -Path $htmlDir -Recurse | Move-Item -Destination /var/www/html -Force
     } else {
-        Get-ChildItem -Path "./tempdir" -Recurse -Exclude '.git','README.md' | Move-Item -Destination /var/www/html -Force
+        Get-ChildItem "./tempdir" -Recurse -Exclude '.git','README.md' | Move-Item -Destination /var/www/html -Force
     }
     Remove-Item -Recurse -Force ./tempdir
     cd $p
