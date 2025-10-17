@@ -90,7 +90,7 @@ function Get-SiteForgeStatus {
     try {
         if (Get-Command fail2ban-client -ErrorAction SilentlyContinue) {
             $summary = (sudo fail2ban-client status 2>&1)
-            if ($summary -match "Status: active") {
+            if ($summary -match "Jail list:") {
                 $jailList = ($summary -split "Jail list:")[1].Trim() -split ",\s*"
                 $jailCount = ($jailList | Where-Object { $_ -ne "" }).Count
                 $totalBanned = 0
@@ -101,7 +101,11 @@ function Get-SiteForgeStatus {
                     }
                 }
                 $status['Fail2Ban'] = "active ($jailCount jails, $totalBanned banned)"
-            } else {
+            }
+            elseif ((sudo systemctl is-active fail2ban) -eq 'active') {
+                $status['Fail2Ban'] = "active (no jails)"
+            }
+            else {
                 $status['Fail2Ban'] = "installed but inactive"
             }
         } else {
@@ -120,3 +124,4 @@ function Get-SiteForgeStatus {
     Write-Host "───────────────────────────────"
     Write-Host "`n💡 Tip: Run 'Update-Website' to redeploy your latest version."
 }
+
