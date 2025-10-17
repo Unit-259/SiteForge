@@ -187,7 +187,8 @@ server {
     Write-Host "`nRun 'update-Website' anytime to redeploy from Git." -ForegroundColor Cyan
 
     # --- Step 12: Reload profile & status ---
-    . $PROFILE
-    sleep 1
-    Get-SiteForgeStatus
+    Write-Host "`n🔄 Reloading PowerShell profile..." -ForegroundColor Yellow
+    Start-Sleep -Seconds 2
+    & pwsh -NoLogo -Command ". $PROFILE; Get-SiteForgeStatus"
+    exit
 }
