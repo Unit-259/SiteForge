@@ -206,4 +206,6 @@ server {
     Write-Host "🧩 Config: /etc/nginx/sites-available/$Domain"
     Write-Host "💾 Repo: $Repo"
     Write-Host "`nRun 'update-Website' anytime to redeploy from Git." -ForegroundColor Cyan
+
+    Get-SiteForgeStatus
 }
