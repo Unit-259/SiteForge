@@ -2,31 +2,71 @@ function Install-SiteForgeProject {
     <#
     .SYNOPSIS
         Fully automates deployment of a new website on Ubuntu using PowerShell + NGINX.
-        Installs all dependencies, configures SSL, sets up SSH (optional),
-        saves config variables to profile, deploys from Git, and activates the site.
+        Handles installs, SSL, optional SSH, and can completely rebuild with -ForceReinstall.
 
     .DESCRIPTION
-        This command is designed for a fresh Ubuntu environment running PowerShell.
-        It can deploy public or private repos, generate SSL certs, and persist all
-        necessary environment details for future management.
+        Run once to install and configure your webserver, deploy your repo, request SSL,
+        and permanently save configuration variables in your PowerShell profile.
+        Optionally pass -ForceReinstall to wipe and rebuild everything from scratch.
     #>
 
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory=$false)] [string]$Domain,
-        [Parameter(Mandatory=$false)] [string]$Repo,
-        [Parameter(Mandatory=$false)] [string]$Email
+        [Parameter(Mandatory = $false)] [string]$Domain,
+        [Parameter(Mandatory = $false)] [string]$Repo,
+        [Parameter(Mandatory = $false)] [string]$Email,
+        [switch]$ForceReinstall
     )
 
     Write-Host "`n🚀 Launching SiteForge Project Installer..." -ForegroundColor Cyan
 
-    # --- Step 1: Interactive prompts ---
+    # --- Step 0: Collect inputs ---
     if (-not $Domain) { $Domain = Read-Host "Enter your primary domain (e.g. example.com)" }
     if (-not $Repo)   { $Repo   = Read-Host "Enter your Git repository URL (HTTPS or SSH)" }
     if (-not $Email)  { $Email  = Read-Host "Enter your contact email for SSL + SSH key" }
 
     $privateRepo = Read-Host "Is this a PRIVATE repository that requires SSH? (y/N)"
     $privateRepo = $privateRepo.Trim().ToLower() -in @('y','yes')
+
+    # --- Step 1: Force reinstall logic ---
+    if ($ForceReinstall) {
+        Write-Host "`n⚠️  Force reinstall mode activated for $Domain" -ForegroundColor Yellow
+        $confirm = Read-Host "This will delete NGINX config, SSL certs, site files, and SiteForge vars. Proceed? (y/N)"
+        if ($confirm.Trim().ToLower() -notin @('y','yes')) {
+            Write-Host "❌ Operation cancelled."
+            return
+        }
+
+        Write-Host "`n🧹 Cleaning up old configuration..." -ForegroundColor Yellow
+        try {
+            sudo systemctl stop nginx
+            sudo rm -f "/etc/nginx/sites-available/$Domain"
+            sudo rm -f "/etc/nginx/sites-enabled/$Domain"
+            sudo rm -rf "/etc/letsencrypt/live/$Domain"
+            sudo rm -rf "/etc/letsencrypt/renewal/$Domain.conf"
+            sudo rm -rf "/var/www/html/*"
+
+            # Remove SiteForge vars from profile
+            if (Test-Path $PROFILE) {
+                (Get-Content $PROFILE) |
+                    Where-Object { $_ -notmatch 'SiteForge Variables' -and $_ -notmatch '\$gitRepo|\$webDomain|\$emailAddr' } |
+                    Set-Content $PROFILE
+            }
+
+            # Optional SSH cleanup
+            $sshConfirm = Read-Host "Do you also want to delete your SSH key (~/.ssh/id_ed25519)? (y/N)"
+            if ($sshConfirm.Trim().ToLower() -in @('y','yes')) {
+                sudo rm -f ~/.ssh/id_ed25519
+                sudo rm -f ~/.ssh/id_ed25519.pub
+                Write-Host "🗝️  SSH keys deleted."
+            }
+
+            sudo systemctl start nginx
+            Write-Host "✅ Reinstall cleanup complete."
+        } catch {
+            Write-Host "⚠️  Cleanup encountered an error: $_" -ForegroundColor Red
+        }
+    }
 
     # --- Step 2: Install dependencies ---
     Write-Host "`n📦 Installing required packages..." -ForegroundColor Yellow
@@ -96,7 +136,6 @@ function update-Website {
 }
 '@
 
-    # Clean + append new sections
     $content = Get-Content $PROFILE -Raw
     $content = $content -replace '(?s)# SiteForge Variables.*?(?=# ---|$)', ''
     $content += "`n$varsBlock`n$helpers"
@@ -147,7 +186,7 @@ server {
     sudo nginx -t
     sudo systemctl reload nginx
 
-    # --- Step 11: Summary banner ---
+    # --- Step 11: Success summary ---
     Write-Host "`n✅ SiteForge setup complete!" -ForegroundColor Green
     Write-Host "🌐 Website: https://$Domain"
     Write-Host "📂 Web root: /var/www/html"
