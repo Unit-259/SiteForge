@@ -3,11 +3,6 @@ function Install-SiteForgeProject {
     .SYNOPSIS
         Fully automates deployment of a new website on Ubuntu using PowerShell + NGINX.
         Handles installs, SSL, firewall, Fail2Ban, and SSH (if needed).
-
-    .DESCRIPTION
-        Run once to install and configure your webserver, deploy your repo, request SSL,
-        and permanently save configuration variables in your PowerShell profile.
-        Optionally pass -ForceReinstall to wipe and rebuild everything from scratch.
     #>
 
     [CmdletBinding()]
@@ -53,14 +48,12 @@ function Install-SiteForgeProject {
             sudo rm -rf "/etc/letsencrypt/renewal/$Domain.conf"
             sudo rm -rf "/var/www/html/*"
 
-            # Remove SiteForge vars from profile
             if (Test-Path $PROFILE) {
                 (Get-Content $PROFILE) |
                     Where-Object { $_ -notmatch 'SiteForge Variables' -and $_ -notmatch '\$gitRepo|\$webDomain|\$emailAddr' } |
                     Set-Content $PROFILE
             }
 
-            # Optional SSH cleanup
             $sshConfirm = Read-Host "Do you also want to delete your SSH key (~/.ssh/id_ed25519)? (y/N)"
             if ($sshConfirm.Trim().ToLower() -in @('y','yes')) {
                 sudo rm -f ~/.ssh/id_ed25519
@@ -79,7 +72,7 @@ function Install-SiteForgeProject {
     Write-Host "`n📦 Installing required packages..." -ForegroundColor Yellow
     sudo apt-get update -y
     sudo apt-get upgrade -y
-    sudo apt-get install -y nginx git curl software-properties-common
+    sudo apt-get install -y nginx git curl software-properties-common certbot python3-certbot-nginx
 
     # --- Step 3: Optional SSH key generation ---
     if ($privateRepo) {
@@ -140,9 +133,7 @@ function restartNginx  { sudo nginx -t && sudo systemctl reload nginx }
     $content = $content -replace '(?s)# SiteForge Variables.*?(?=# ---|$)', ''
     $content += "`n$varsBlock`n$helpers"
     Set-Content -Path $PROFILE -Value $content
-
-    # --- Step 6: Reload profile ---
-    Write-Host "`n🔄 Reloading PowerShell profile..." -ForegroundColor Yellow
+    Start-Sleep -Seconds 1
     . $PROFILE
 
     # --- Step 7: Deploy initial site ---
@@ -162,10 +153,10 @@ function restartNginx  { sudo nginx -t && sudo systemctl reload nginx }
     # --- Step 8: Create NGINX config ---
     $configPath = "/etc/nginx/sites-available/$Domain"
     if (-not (Test-Path $configPath)) {
-        $nginxConfig = @"
+        $nginxConfig = @'
 server {
     listen 80;
-    server_name $Domain www.$Domain;
+    server_name DOMAIN_PLACEHOLDER www.DOMAIN_PLACEHOLDER;
     root /var/www/html;
     index index.html index.htm index.php;
 
@@ -173,7 +164,7 @@ server {
         try_files $uri $uri/ /index.html;
     }
 }
-"@
+'@ -replace 'DOMAIN_PLACEHOLDER', $Domain
         $nginxConfig | sudo tee $configPath > $null
         sudo ln -sf $configPath "/etc/nginx/sites-enabled/$Domain"
     }
@@ -197,5 +188,6 @@ server {
 
     # --- Step 12: Reload profile & status ---
     . $PROFILE
+    sleep 1
     Get-SiteForgeStatus
 }
