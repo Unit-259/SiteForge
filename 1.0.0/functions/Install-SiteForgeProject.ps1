@@ -2,7 +2,7 @@ function Install-SiteForgeProject {
     <#
     .SYNOPSIS
         Fully automates deployment of a new website on Ubuntu using PowerShell + NGINX.
-        Handles installs, SSL, optional SSH, and can completely rebuild with -ForceReinstall.
+        Handles installs, SSL, firewall, Fail2Ban, and SSH (if needed).
 
     .DESCRIPTION
         Run once to install and configure your webserver, deploy your repo, request SSL,
@@ -170,7 +170,7 @@ server {
     index index.html index.htm index.php;
 
     location / {
-        try_files \$uri \$uri/ /index.html;
+        try_files $uri $uri/ /index.html;
     }
 }
 "@
@@ -180,6 +180,7 @@ server {
 
     # --- Step 9: Obtain SSL cert ---
     Write-Host "`n🔐 Requesting Let's Encrypt SSL certificate..." -ForegroundColor Yellow
+    sudo nginx -t
     sudo certbot --nginx --non-interactive --agree-tos --email $Email -d $Domain -d "www.$Domain"
 
     # --- Step 10: Reload NGINX ---
@@ -194,5 +195,7 @@ server {
     Write-Host "💾 Repo: $Repo"
     Write-Host "`nRun 'update-Website' anytime to redeploy from Git." -ForegroundColor Cyan
 
+    # --- Step 12: Reload profile & status ---
+    . $PROFILE
     Get-SiteForgeStatus
 }
