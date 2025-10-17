@@ -57,15 +57,15 @@ function New-SiteForgeProject {
     # --- NGINX configuration --------------------------------------------------
     $configPath = "/etc/nginx/sites-available/$Domain"
     if (-not (Test-Path $configPath)) {
-        $nginxConfig = @"
+$nginxConfig = @"
 server {
     listen 80;
     server_name $Domain www.$Domain;
     root /var/www/html;
-    index index.html index.htm index.php;
+    index index.html;
 
     location / {
-        try_files \$uri \$uri/ /index.html;
+        try_files \$uri \$uri/ =404;
     }
 }
 "@
@@ -83,3 +83,4 @@ server {
 
     Write-Host "`n✅ SiteForge project setup complete for $Domain" -ForegroundColor Green
 }
+
