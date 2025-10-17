@@ -12,23 +12,43 @@ function Update-Website {
 
     Write-Host "`n🔁 Updating website from $RepoLink..." -ForegroundColor Cyan
 
+    # Save current path
     $p = Get-Location
-    sudo rm -rf /var/www/html/*
-    cd /root/
 
-    git clone $RepoLink tempdir
-
-    if (Test-Path -Path "./tempdir/html") {
-        Get-ChildItem -Path ./tempdir/html -Recurse | Move-Item -Destination /var/www/html
+    # Clean target directory
+    if (Test-Path "/var/www/html") {
+        sudo rm -rf /var/www/html/*
     } else {
-        Write-Host "⚠️ The directory 'html' does not exist within the repository."
+        sudo mkdir -p /var/www/html
     }
 
-    Remove-Item -Path ./tempdir -Recurse -Force
+    # Clone the repository fresh each time
+    cd /root/
+    if (Test-Path "./tempdir") {
+        Remove-Item -Recurse -Force ./tempdir
+    }
+    git clone $RepoLink tempdir | Out-Host
+
+    # Decide what to move
+    $htmlDir = "./tempdir/html"
+    $repoRoot = "./tempdir"
+
+    if (Test-Path $htmlDir) {
+        Write-Host "📁 Found 'html' folder — deploying contents..."
+        Get-ChildItem -Path $htmlDir -Recurse | Move-Item -Destination /var/www/html -Force
+    } else {
+        Write-Host "📂 No 'html' folder found — deploying root repo files instead..."
+        Get-ChildItem -Path $repoRoot -Recurse -Exclude '.git', '.github', '.gitignore' | Move-Item -Destination /var/www/html -Force
+    }
+
+    # Cleanup
+    if (Test-Path "./tempdir") {
+        Remove-Item -Recurse -Force ./tempdir
+    }
     cd $p
 
-    sudo chmod +x /var/www/html
-    sudo chmod 755 /var/www/html
+    # Fix permissions
+    sudo chmod -R 755 /var/www/html
 
     Write-Host "✅ Website updated successfully." -ForegroundColor Green
 }
