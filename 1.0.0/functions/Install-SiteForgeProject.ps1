@@ -123,7 +123,7 @@ function Install-SiteForgeProject {
             ssh-keygen -t ed25519 -C $Email
             Write-Host "`n📋 Public SSH key (add to GitHub Deploy Keys):" -ForegroundColor Yellow
             cat ~/.ssh/id_ed25519.pub
-            if (-not $SkipPrompts) { Read-Host "`nPress Enter once you've added the key to GitHub" }
+            Read-Host "`nPress Enter once you've added the key to GitHub"  # Always pause for SSH key setup
         } else {
             Write-Host "✅ SSH key already exists — skipping generation."
         }
