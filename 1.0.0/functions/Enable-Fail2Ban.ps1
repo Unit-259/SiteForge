@@ -5,7 +5,7 @@ function Enable-Fail2Ban {
     #>
 
     Write-Host "`n🚨 Initializing Fail2Ban setup..." -ForegroundColor Yellow
-    sudo apt-get install -y fail2ban
+    sudo apt-get install -y fail2ban *> $null
 
     $jailConf = "/etc/fail2ban/jail.local"
     @"
@@ -18,8 +18,8 @@ bantime = 3600
 "@ | sudo tee $jailConf > $null
 
     Write-Host "⚙️  Applying configuration..."
-    sudo systemctl enable fail2ban
-    sudo systemctl restart fail2ban
+    sudo systemctl enable fail2ban *> $null
+    sudo systemctl restart fail2ban *> $null
     Start-Sleep -Seconds 2
 
     if ((sudo systemctl is-active fail2ban) -eq 'active') {
