@@ -239,4 +239,5 @@ server {
     Start-Sleep -Seconds 2
     & pwsh -NoLogo -Command ". $PROFILE; Get-SiteForgeStatus"
     exit
+    }
 }
