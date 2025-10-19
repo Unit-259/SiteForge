@@ -2,7 +2,7 @@ function Install-SiteForgeProject {
     <#
     .SYNOPSIS
         Fully automates deployment of a new website on Ubuntu using PowerShell + NGINX.
-        Handles installs, SSL, firewall, Fail2Ban, DNS check, and SSH (if needed).
+        Handles installs, SSL, firewall, Fail2Ban, and SSH (if needed).
 
     .EXAMPLE
         Install-SiteForgeProject -Domain "example.com" -Repo "git@github.com:Unit-259/example.git" -Email "me@example.com" -UseSSH -EnableFirewall -EnableFail2Ban -AutoDNSCheck -SkipPrompts
@@ -21,7 +21,6 @@ function Install-SiteForgeProject {
         [switch]$AutoDNSCheck
     )
 
-    $startTime = Get-Date
     Write-Host "`n🚀 Launching SiteForge Project Installer..." -ForegroundColor Cyan
 
     # --- Step 0: Collect inputs ---
@@ -39,6 +38,8 @@ function Install-SiteForgeProject {
             $privateRepo = Read-Host "Is this a PRIVATE repository that requires SSH? (y/N)"
             $UseSSH = $privateRepo.Trim().ToLower() -in @('y','yes')
         }
+    } else {
+        $UseSSH = $false
     }
 
     # --- Step 0.5: DNS validation ---
@@ -70,7 +71,6 @@ function Install-SiteForgeProject {
     # --- Step 1: Force reinstall logic ---
     if ($ForceReinstall) {
         Write-Host "`n⚠️  Force reinstall mode activated for $Domain" -ForegroundColor Yellow
-
         if (-not $SkipPrompts) {
             $confirm = Read-Host "This will delete NGINX config, SSL certs, site files, and SiteForge vars. Proceed? (y/N)"
             if ($confirm.Trim().ToLower() -notin @('y','yes')) {
@@ -219,25 +219,16 @@ server {
     sudo systemctl reload nginx
 
     # --- Step 11: Success summary ---
-    $endTime = Get-Date
-    $duration = $endTime - $startTime
-    $mins = [math]::Floor($duration.TotalMinutes)
-    $secs = [math]::Round($duration.Seconds, 0)
-
     Write-Host "`n✅ SiteForge setup complete!" -ForegroundColor Green
     Write-Host "🌐 Website: https://$Domain"
     Write-Host "📂 Web root: /var/www/html"
     Write-Host "🧩 Config: /etc/nginx/sites-available/$Domain"
     Write-Host "💾 Repo: $Repo"
-    Write-Host ""
-    Write-Host ("⏱️  Total runtime: {0} minute{1} {2} second{3}" -f $mins, $(if ($mins -ne 1){"s"}else{""}), $secs, $(if ($secs -ne 1){"s"}else{""}))) -ForegroundColor Yellow
-    Write-Host ""
-    Write-Host "Run 'update-Website' anytime to redeploy from Git." -ForegroundColor Cyan
+    Write-Host "`nRun 'update-Website' anytime to redeploy from Git." -ForegroundColor Cyan
 
     # --- Step 12: Reload profile & status ---
     Write-Host "`n🔄 Reloading PowerShell profile..." -ForegroundColor Yellow
     Start-Sleep -Seconds 2
     & pwsh -NoLogo -Command ". $PROFILE; Get-SiteForgeStatus"
     exit
-    }
 }
